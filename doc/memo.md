@@ -23,16 +23,33 @@ The connotations are in another folder what the fuck!!!!! plz dont lost connecti
     - length: 148
     - dict_keys(['sensor_token', 'rotation', 'camera_intrinsic', 'translation', 'token'])
 
-9 category,
-18 attribute,
-4 visibility,
-18421 instance,
-10 sensor,
-148 calibrated_sensor,
-177789 ego_pose,
-180 log,
-180 scene,
-22680 sample,
-189504 sample_data,
-638179 sample_annotation,
-1 map
+### Table names
+
+* 9 category,
+* 18 attribute,
+* 4 visibility,
+* 18421 instance,
+* 10 sensor,
+* 148 calibrated_sensor,
+* 177789 ego_pose,
+* 180 log,
+* 180 scene,
+* 22680 sample,
+* 189504 sample_data,
+* 638179 sample_annotation,
+* 1 map
+
+### Table::Sample
+
+Sample.keys:
+dict_keys(['next', 'prev', 'token', 'timestamp', 'scene_token', **'data'**, 'anns'])
+
+Sample['data'].keys():
+dict_keys(['CAM_BACK', 'CAM_FRONT_ZOOMED', 'LIDAR_FRONT_RIGHT', 'CAM_FRONT', 'CAM_FRONT_LEFT', 'CAM_FRONT_RIGHT', 'CAM_BACK_RIGHT', 'CAM_BACK_LEFT', 'LIDAR_TOP', 'LIDAR_FRONT_LEFT'])
+
+### Table::Sample_data
+
+sample data as lidar, keys:
+dict_keys(['is_key_frame', 'prev', 'fileformat', 'token', 'timestamp', 'next', 'ego_pose_token', 'sample_token', 'calibrated_sensor_token', 'filename', 'sensor_modality', 'channel'])
+
+sample data as image: token itself

@@ -13,8 +13,9 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import pickle
 from config import cfg
-from utils.voxel_gen import pointcloud_gen, voxel_gen
-from utils.sp2d import sparse2dense
+from lyft_dataset_sdk.lyftdataset import LyftDataset
+# from utils.voxel_gen import pointcloud_gen, voxel_gen
+# from utils.sp2d import sparse2dense
 
 
 class VoxelDataset(Dataset):
@@ -23,7 +24,6 @@ class VoxelDataset(Dataset):
 
     def __init__(self, device, transform=None, evaluate=False):
         """ Generate the point   
-
         """
         # Make clear how the evalution goes
         evalcfg = cfg.eval
