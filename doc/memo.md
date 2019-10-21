@@ -52,4 +52,7 @@ dict_keys(['CAM_BACK', 'CAM_FRONT_ZOOMED', 'LIDAR_FRONT_RIGHT', 'CAM_FRONT', 'CA
 sample data as lidar, keys:
 dict_keys(['is_key_frame', 'prev', 'fileformat', 'token', 'timestamp', 'next', 'ego_pose_token', 'sample_token', 'calibrated_sensor_token', 'filename', 'sensor_modality', 'channel'])
 
-sample data as image: token itself
+sample data as image: token itself.
+
+lidar render time: ~6.797s
+image render time: ~1.175s
