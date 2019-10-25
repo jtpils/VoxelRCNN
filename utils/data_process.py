@@ -1,33 +1,25 @@
 # Adapted from Lyft Dataset SDK dev-kit
 # Licensed under the Creative Commons
 
+#TODO: Probably need to adapt to torch version (latter part)
+#TODO: Need to compare execution speed
+#TODO: Change the function comment
 
-from lyft_dataset_sdk.lyftdataset import LyftDataset
-from config import cfg
 import time
-from lyft_dataset_sdk.lyftdataset import LyftDatasetExplorer
-from lyft_dataset_sdk.utils.data_classes import Box, LidarPointCloud, RadarPointCloud  # NOQA
-from pyquaternion import Quaternion
-import numpy as np
-
-button = cfg.data.button
-
-lyft_data = LyftDataset(
-    data_path=cfg.data.lyft,
-    json_path=cfg.data.train_path,
-    verbose=False
-)
-
-
-
-from lyft_dataset_sdk.utils.data_classes import Box, LidarPointCloud, RadarPointCloud  # NOQA
-from lyft_dataset_sdk.utils.geometry_utils import BoxVisibility, box_in_image, view_points  # NOQA
-from pyquaternion import Quaternion
 import numpy as np
 from PIL import Image
+from pyquaternion import Quaternion
+
+from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, RadarPointCloud  # NOQA
+from lyft_dataset_sdk.utils.geometry_utils import view_points  # NOQA
 
 
-def map_pc_to_image(pointsensor_token: str, camera_token: str) -> tuple:
+def map_pc_to_image(lyft_data,
+                    pointsensor_token: str, 
+                    camera_token: str = None,
+                    get_ego=False,
+                    get_world=False,
+                    rgb_in_pc=False) -> np.ndarray:
     """Given a point sensor (lidar/radar) token and camera sample_data token, load point-cloud and map it to
     the image plane.
 
@@ -40,28 +32,34 @@ def map_pc_to_image(pointsensor_token: str, camera_token: str) -> tuple:
         coloring <np.float: n>, image <Image>
         
     """
-
-    cam = lyft_data.get("sample_data", camera_token)
+    
     pointsensor = lyft_data.get("sample_data", pointsensor_token)
     pcl_path = lyft_data.data_path / pointsensor["filename"]
     if pointsensor["sensor_modality"] == "lidar":
         pc = LidarPointCloud.from_file(pcl_path)
     else:
         pc = RadarPointCloud.from_file(pcl_path)
-    im = Image.open(str(lyft_data.data_path / cam["filename"]))
 
     # Points live in the point sensor frame. So they need to be transformed via global to the image plane.
     # First step: transform the point-cloud to the ego vehicle frame for the timestamp of the sweep.
     cs_record = lyft_data.get("calibrated_sensor", pointsensor["calibrated_sensor_token"])
     pc.rotate(Quaternion(cs_record["rotation"]).rotation_matrix)
     pc.translate(np.array(cs_record["translation"]))
-    pc_calibrated = pc.points
+    pc_ego = pc.points
+    if get_ego: return pc_ego
 
     # Second step: transform to the global frame.
     poserecord = lyft_data.get("ego_pose", pointsensor["ego_pose_token"])
     pc.rotate(Quaternion(poserecord["rotation"]).rotation_matrix)
     pc.translate(np.array(poserecord["translation"]))
+    pc_world = pc.points
+    if get_world: return pc_world
 
+    # Obtain image
+    assert camera_token is not None, "Must specify a camera token"
+    cam = lyft_data.get("sample_data", camera_token)
+    im = Image.open(str(lyft_data.data_path / cam["filename"]))
+    
     # Third step: transform into the ego vehicle frame for the timestamp of the image.
     poserecord = lyft_data.get("ego_pose", cam["ego_pose_token"])
     pc.translate(-np.array(poserecord["translation"]))
@@ -76,9 +74,6 @@ def map_pc_to_image(pointsensor_token: str, camera_token: str) -> tuple:
     # Grab the depths (camera frame z axis points away from the camera).
     depths = pc.points[2, :]
 
-    # Retrieve the color from the depth.
-    coloring = depths
-
     # Take the actual picture (matrix multiplication with camera-matrix + renormalization).
     points = view_points(pc.points[:3, :], np.array(cs_record["camera_intrinsic"]), normalize=True)
 
@@ -90,7 +85,6 @@ def map_pc_to_image(pointsensor_token: str, camera_token: str) -> tuple:
     mask = np.logical_and(mask, points[1, :] > 1)
     mask = np.logical_and(mask, points[1, :] < im.size[1] - 1)
     points = points[:, mask]
-    coloring = coloring[mask]
    
     # Map the image points to the lidar points.
     idx = points.round().astype(np.int)
@@ -98,12 +92,16 @@ def map_pc_to_image(pointsensor_token: str, camera_token: str) -> tuple:
     row_idx = idx[1,:]
     image = np.asarray(im)
     points_rgb = image[row_idx, col_idx].T
-    points_rgb = np.vstack((points, points_rgb))
-
-    return points, coloring, im, mask, points_rgb
+    return np.vstack((pc_ego[:, mask], points_rgb))
 
 
 if __name__ == "__main__":
+    from lyft_dataset_sdk.lyftdataset import LyftDataset
+    from config import cfg
+    cfg = cfg.data
+    lyft_data = LyftDataset(data_path=cfg.lyft,
+                            json_path=cfg.train_path,
+                            verbose=False)
     one_scene = lyft_data.scene[0]
     first_sample_token = one_scene["first_sample_token"]
     sample = lyft_data.get('sample', first_sample_token)
@@ -116,5 +114,5 @@ if __name__ == "__main__":
     cam_token = sample_data[cam_front_channel]
     cam_data = lyft_data.get("sample_data", cam_token)
     cs_cam = lyft_data.get("calibrated_sensor", cam_data["calibrated_sensor_token"])
-    points, coloring, im, mask = map_pc_to_image(lidar_token, cam_token)
+    points, coloring, im, mask = map_pc_to_image(lyft_data, lidar_token, cam_token)
     pass

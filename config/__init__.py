@@ -39,7 +39,9 @@ __C.data.button.REND_PC_IMG = False
 __C.data.button.REND_LIDAR_3D = False
 
 # data channel
-__C.data.lidar = True
-__C.data.lidar_channel = ['LIDAR_TOP']
+__C.data.all_lidar = False
+__C.data.default_lidar_channel = ['LIDAR_TOP']
+__C.data.else_lidar_channel = ['LIDAR_FRONT_RIGHT', 'LIDAR_FRONT_LEFT']
 __C.data.render_cam = False
-__C.data.cam_channel = ['CAM_FRONT']
+__C.data.cam_channel = ['CAM_FRONT', 'CAM_BACK', 'CAM_LEFT', 
+                        'CAM_FRONT_ZOOMED', 'CAM_RIGHT']

@@ -14,6 +14,7 @@ from torch.utils.data import Dataset, DataLoader
 import pickle
 from config import cfg
 from lyft_dataset_sdk.lyftdataset import LyftDataset
+from utils.data_process import map_pc_to_image
 # from utils.voxel_gen import pointcloud_gen, voxel_gen
 # from utils.sp2d import sparse2dense
 
@@ -29,8 +30,8 @@ class CarlaokDataset(Dataset):
     """
 
     def __init__(self,
-                 device:str='cpu', 
-                 validation:bool=False):
+                 device: str = 'cpu', 
+                 validation: bool = False):
         """ Initalize the dataset list using lyft samples
         
         Args: 
@@ -71,12 +72,18 @@ class CarlaokDataset(Dataset):
         return len(self.lyft_data.sample)
         
     
-    def __lidar2ego__(self, pointsensor_token: str) -> np.ndarray:
-        pass
+    def __map_pc_to_image__(self, pointsensor_token: str, cam_token: str) -> np.ndarray:
+        return map_pc_to_image(self.lyft_data, pointsensor_token, cam_token)
     
     
-    def __lidar_add_cam__(self) -> np.ndarray:
-        pass
+    def __get_lidar_ego__(self, pointsensor_token: str) -> np.ndarray:
+        return map_pc_to_image(self.lyft_data, pointsensor_token, get_ego=True)
+    
+    
+    def __get_lidar_world__(self, pointsensor_token: str) -> np.ndarray:
+        return map_pc_to_image(self.lyft_data, pointsensor_token, get_world=True)
+    
+    
     
     
     @staticmethod
