@@ -15,6 +15,7 @@ cfg = __C
 """ GPU """
 __C.CUDA_VISIBLE_DEVICES = "1"                   # Type your available GPUs!!
 __C.multi_GPU = False if len(__C.CUDA_VISIBLE_DEVICES) == 1 else True
+__C.device = "cuda:0"
 
 
 """ Data path init """
@@ -40,8 +41,9 @@ __C.data.button.REND_LIDAR_3D = False
 
 # data channel
 __C.data.all_lidar = False
-__C.data.default_lidar_channel = ['LIDAR_TOP']
-__C.data.else_lidar_channel = ['LIDAR_FRONT_RIGHT', 'LIDAR_FRONT_LEFT']
-__C.data.render_cam = False
-__C.data.cam_channel = ['CAM_FRONT', 'CAM_BACK', 'CAM_LEFT', 
-                        'CAM_FRONT_ZOOMED', 'CAM_RIGHT']
+__C.data.default_lidar_channel = 'LIDAR_TOP'
+__C.data.auxiliary_lidar_channel = ['LIDAR_FRONT_RIGHT', 'LIDAR_FRONT_LEFT']
+__C.data.use_cam = True
+__C.data.cam_channel = ['CAM_FRONT', 'CAM_BACK', 'CAM_FRONT_LEFT',
+                        'CAM_FRONT_RIGHT', 'CAM_BACK_LEFT', 
+                        'CAM_BACK_RIGHT', 'CAM_FRONT_ZOOMED']

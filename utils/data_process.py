@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image
 from pyquaternion import Quaternion
 
-from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, RadarPointCloud  # NOQA
+from lyft_dataset_sdk.utils.data_classes import PointCloud, LidarPointCloud, RadarPointCloud  # NOQA
 from lyft_dataset_sdk.utils.geometry_utils import view_points  # NOQA
 
 
@@ -18,8 +18,7 @@ def map_pc_to_image(lyft_data,
                     pointsensor_token: str, 
                     camera_token: str = None,
                     get_ego=False,
-                    get_world=False,
-                    rgb_in_pc=False) -> np.ndarray:
+                    get_world=False) -> LidarPointCloud:
     """Given a point sensor (lidar/radar) token and camera sample_data token, load point-cloud and map it to
     the image plane.
 
@@ -45,15 +44,14 @@ def map_pc_to_image(lyft_data,
     cs_record = lyft_data.get("calibrated_sensor", pointsensor["calibrated_sensor_token"])
     pc.rotate(Quaternion(cs_record["rotation"]).rotation_matrix)
     pc.translate(np.array(cs_record["translation"]))
-    pc_ego = pc.points
-    if get_ego: return pc_ego
+    pc_ego = pc.points.copy()
+    if get_ego: return pc
 
     # Second step: transform to the global frame.
     poserecord = lyft_data.get("ego_pose", pointsensor["ego_pose_token"])
     pc.rotate(Quaternion(poserecord["rotation"]).rotation_matrix)
     pc.translate(np.array(poserecord["translation"]))
-    pc_world = pc.points
-    if get_world: return pc_world
+    if get_world: return pc
 
     # Obtain image
     assert camera_token is not None, "Must specify a camera token"

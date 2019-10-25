@@ -168,3 +168,5 @@ If need to do the transformations backwards, we need to use to use T.inv, which 
 Point cloud => calibrated => global => global (cam) => calibrated => camera frame => image plane
 
 By camera frame => image plane, use the `camera_intrinsic` in camera calibrated sensor, by adopting the function: ![Intrinsics](./IntrinsicMat.png) in function `view_points(points: np.ndarray, view: np.ndarray, normalize: bool) -> np.ndarray` from `lyft_dataset_sdk.utils.geometry_utils`.
+
+average loading time: about 0.4s
