@@ -1,4 +1,8 @@
-# The configuration file
+__author__ = "Siyuan Feng"
+
+#TODO: add dataloader config
+#TODO: add 
+
 import os, glob
 from easydict import EasyDict as edict
 import numpy as np
@@ -8,7 +12,12 @@ __C = edict()
 cfg = __C
 
 
-# Data path init
+""" GPU """
+__C.CUDA_VISIBLE_DEVICES = "1"                   # Type your available GPUs!!
+__C.multi_GPU = False if len(__C.CUDA_VISIBLE_DEVICES) == 1 else True
+
+
+""" Data path init """
 __C.data = edict()
 __C.data.base = os.path.join(".", "data")
 __C.data.lyft = os.path.join(__C.data.base, "lyft")
@@ -28,3 +37,9 @@ __C.data.button.REND_SAMPLE = False
 __C.data.button.LIST_SAMPLE = False
 __C.data.button.REND_PC_IMG = False
 __C.data.button.REND_LIDAR_3D = False
+
+# data channel
+__C.data.lidar = True
+__C.data.lidar_channel = ['LIDAR_TOP']
+__C.data.render_cam = False
+__C.data.cam_channel = ['CAM_FRONT']

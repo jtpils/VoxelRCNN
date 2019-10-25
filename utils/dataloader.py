@@ -18,32 +18,75 @@ from lyft_dataset_sdk.lyftdataset import LyftDataset
 # from utils.sp2d import sparse2dense
 
 
-class VoxelDataset(Dataset):
-    """ Point Cloud Dataset
+class CarlaokDataset(Dataset):
+    """ Lyft Dataset
+    Using lyft dataset sdk to generate the trainable data
+    
+    Attributes:
+        __init__: ...
+        __getitem__: ...
+        
     """
 
-    def __init__(self, device, transform=None, evaluate=False):
-        """ Generate the point   
+    def __init__(self,
+                 device:str='cpu', 
+                 validation:bool=False):
+        """ Initalize the dataset list using lyft samples
+        
+        Args: 
+            device: cpu or gpu
+            validation: true if to validate or test
+        
+        Returns:
+            CarlaokDataset: torch Dataset instance
         """
-        # Make clear how the evalution goes
-        evalcfg = cfg.eval
-        self.eval_enable = evalcfg.enable
-        if self.eval_enable:
-            pass
+        self.cfg = cfg.data
+        self.lyft_data = LyftDataset(data_path=self.cfg.lyft,
+                                     json_path=self.cfg.train_path,
+                                     verbose=False)
         
         
     def __getitem__(self, idx):
-        """返回输入的数据
+        """ Return the selected data from the lyft dataset
 
-        输入：点云原始数据
-        输出：包含体素信息的字典
+        Args:
+            bla
+        
+        Returns:
+            bla
 
-        注意：体素信息有
-            1. 体素格子大小
-            2. 体素本身的数据信息（详情参见pointnet-segmentation-survey）
-
-        包含方法：
-            1. 从点云生成体素
-            2. 体素可视化
         """
+        sample_data = self.lyft_data[idx]['data']
+        lidar_token = []
+        for channel in self.cfg.lidar_channel:
+            lidar_token.append(lyft_data.get('sample_data', sample_data[channel]))
+
+        if self.cfg.render_cam:
+            cam_token = []
+            for channel in self.cfg.cam_channel:
+                cam_token.append(lyft_data)
+
+    
+    def __len__(self):
+        return len(self.lyft_data.sample)
+        
+    
+    def __lidar2ego__(self, pointsensor_token: str) -> np.ndarray:
         pass
+    
+    
+    def __lidar_add_cam__(self) -> np.ndarray:
+        pass
+    
+    
+    @staticmethod
+    def get_dataset_len():
+        """ Return the length of the dataset """
+        lyft_data = LyftDataset(data_path=cfg.data.lyft,
+                                json_path=cfg.data.train_path,
+                                verbose=False)
+        return len(lyft_data.sample)
+    
+    
+if __name__ == '__main__':
+    print(CarlaokDataset.get_dataset_len())

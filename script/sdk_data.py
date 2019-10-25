@@ -2,6 +2,9 @@ from lyft_dataset_sdk.lyftdataset import LyftDataset
 from config import cfg
 import time
 from lyft_dataset_sdk.lyftdataset import LyftDatasetExplorer
+from lyft_dataset_sdk.utils.data_classes import Box, LidarPointCloud, RadarPointCloud  # NOQA
+from pyquaternion import Quaternion
+import numpy as np
 
 button = cfg.data.button
 
@@ -49,22 +52,36 @@ sample_data = sample['data']
 # One sensor in sample data
 # lidar: type 1
 lidar_top_channel = 'LIDAR_TOP'
-lidar_data = lyft_data.get('sample_data', sample_data[lidar_top_channel])
+lidar_data = sample_data[lidar_top_channel]
+lidar_token = lyft_data.get('sample_data', lidar_data)
 # print("lidar data keys: \n", lidar_data.keys())
-start = time.time()
-lyft_data.render_sample_data(lidar_data['token'], out_path=cfg.data.image)
-print("lidar render time: {:.3f}".format(time.time() - start))
+# start = time.time()
+# lyft_data.render_sample_data(lidar_data['token'], out_path=cfg.data.image)
+# print("lidar render time: {:.3f}".format(time.time() - start))
+data_path, boxes, camera_intrinsic = lyft_data.get_sample_data(lidar_token['token'])
+pc = LidarPointCloud.from_file(data_path)
+cs_record = lyft_data.get("calibrated_sensor", lidar_token["calibrated_sensor_token"])
+# Points live in the point sensor frame
+# Transform the points to the ego vehicle frame
+pc.rotate(Quaternion(cs_record["rotation"]).rotation_matrix)
+pc.translate(np.array(cs_record["translation"]))
 
 
 # cam: type 2
 cam_front_channel = 'CAM_FRONT'
 cam_token = sample_data[cam_front_channel]
-start = time.time()
-lyft_data.render_sample_data(cam_token, out_path=cfg.data.image)
-print("image render time: {:.3f}".format(time.time() - start))
+# start = time.time()
+# lyft_data.render_sample_data(cam_token, out_path=cfg.data.image)
+# print("image render time: {:.3f}".format(time.time() - start))
+cam = lyft_data.get("calibrated_sensor", lidar_data["calibrated_sensor_token"])
 
 
 # image to pc
-points, coloring, im = lyft_data.map_pointcloud_to_image(lidar_data['token'],
-                                                         cam_token)
+# points, coloring, im, mask = lyft_data.map_pointcloud_to_image(lidar_data['token'],
+#                                                          cam_token)
 pass
+
+
+
+# if __name__ == '__main__':
+#     pass
