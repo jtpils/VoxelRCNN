@@ -17,6 +17,8 @@ from lyft_dataset_sdk.lyftdataset import LyftDataset
 from lyft_dataset_sdk.utils.data_classes import LidarPointCloud
 from utils.data_process import map_pc_to_image
 from pyquaternion import Quaternion
+from spconv.utils import VoxelGeneratorV2
+
 # from utils.voxel_gen import pointcloud_gen, voxel_gen
 # from utils.sp2d import sparse2dense
 
@@ -39,11 +41,16 @@ class CarlaokDataset(Dataset):
         __getitem__: ...
         
     """
-    # Class varable as lyft_data
+    # The lyft data sdk
     lyft_data = LyftDataset(data_path=cfg.data.lyft,
                             json_path=cfg.data.train_path,
                             verbose=False)
     
+    # The voxel generator
+    voxel_generator = VoxelGeneratorV2(cfg.voxel.voxel_size, 
+                                       cfg.voxel.range,
+                                       cfg.voxel.max_num)
+    grid_size = voxel_generator.grid_size
     
     # Split the data into train, test and validation when initialized
     datacfg = cfg.data
@@ -60,7 +67,7 @@ class CarlaokDataset(Dataset):
         Returns:
             CarlaokDataset: torch Dataset instance
         """
-        self.cfg = cfg.data
+        self.cfg = CarlaokDataset.datacfg
         self.dft_lidar_channel = self.cfg.default_lidar_channel
         self.aux_lidar_channel = self.cfg.auxiliary_lidar_channel
         self.use_all_lidar = self.cfg.all_lidar
@@ -83,7 +90,7 @@ class CarlaokDataset(Dataset):
         sensor_token = sample['data']
         dft_lidar_token = sensor_token[self.dft_lidar_channel]
         dft_pc = self.get_lidar_ego(dft_lidar_token)    # Calibrate the lidar
-        print("raw pc: ", dft_pc.points.shape)
+        # print("raw pc: ", dft_pc.points.shape)
         
         # Calibrate and append other lidars to the TOP lidar
         if self.use_all_lidar: 
@@ -95,7 +102,7 @@ class CarlaokDataset(Dataset):
                 dft_lidar_data = CarlaokDataset.lyft_data.get('sample_data', dft_lidar_token)
                 aux_pc = self.map_pc_to_default(token, dft_lidar_data)
                 dft_pc.points = np.hstack([dft_pc.points, aux_pc.points])
-                print("aux pc: ", aux_pc.points.shape)
+                # print("aux pc: ", aux_pc.points.shape)
         assert dft_pc.points.shape[0] == 4
                 
         # Use camera information
@@ -105,10 +112,18 @@ class CarlaokDataset(Dataset):
             for token in cam_token:
                 one_pc_rgb = self.map_pc_to_image(dft_lidar_token, token)
                 pc_rgb = np.hstack([pc_rgb, one_pc_rgb])
-                print("rgb: ", one_pc_rgb.shape)
-            return pc_rgb
-        # Otherwise
-        return dft_pc.points
+                # print("rgb: ", one_pc_rgb.shape)
+            gt_pc = pc_rgb.T
+            del pc_rgb
+        else: 
+            gt_pc = dft_pc.points.T
+            del dft_pc
+        
+        if cfg.multi_GPU is True:
+            voxels = CarlaokDataset.voxel_generator.generate_multi_gpu(gt_pc)
+        else:
+            voxels = CarlaokDataset.voxel_generator.generate(gt_pc)
+        return voxels
     
     
     def __len__(self):
@@ -144,16 +159,16 @@ class CarlaokDataset(Dataset):
 if __name__ == '__main__':
     import os, time
     os.environ["CUDA_VISIBLE_DEVICES"]=cfg.CUDA_VISIBLE_DEVICES
+    from sys import getsizeof
 
     train_set, valid_set, test_set = get_datasets()
+    print(getsizeof(train_set), getsizeof(valid_set), getsizeof(test_set))
+    del valid_set, test_set
     
-    # print("dataset length is: ", )
-
-    # for i in range(len(train_set)):
-    #     start = time.time()
-    #     sample = train_set[i]
-    #     print("time: ", time.time() - start)
-    #     print("out sample: ", sample.shape)
-    #     pass
+    for i in range(len(train_set)):
+        start = time.time()
+        sample = train_set[i]
+        print("time: ", time.time() - start)
+        print("sample size: ", getsizeof(sample))
     pass
     

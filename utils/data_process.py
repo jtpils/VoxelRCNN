@@ -9,9 +9,9 @@ import time
 import numpy as np
 from PIL import Image
 from pyquaternion import Quaternion
-
 from lyft_dataset_sdk.utils.data_classes import PointCloud, LidarPointCloud, RadarPointCloud  # NOQA
 from lyft_dataset_sdk.utils.geometry_utils import view_points  # NOQA
+
 
 
 def map_pc_to_image(lyft_data,
