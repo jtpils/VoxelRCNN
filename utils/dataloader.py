@@ -21,6 +21,15 @@ from pyquaternion import Quaternion
 # from utils.sp2d import sparse2dense
 
 
+def get_datasets():
+    """ Wrapper to get train, valid, and test datasets """
+    fullset = CarlaokDataset()
+    dataset_length = CarlaokDataset.get_dataset_len()
+    split_length = [int(dataset_length*ratio) for ratio in cfg.data.split_ratio]
+    split_length[-1] += dataset_length - sum(split_length)
+    return random_split(fullset, split_length)
+
+
 class CarlaokDataset(Dataset):
     """ Lyft Dataset
     Using lyft dataset sdk to generate the trainable data
@@ -35,8 +44,10 @@ class CarlaokDataset(Dataset):
                             json_path=cfg.data.train_path,
                             verbose=False)
     
+    
     # Split the data into train, test and validation when initialized
     datacfg = cfg.data
+    type_name = ["train", "valid", "test"]
     
     
     def __init__(self, device: str = None):
@@ -55,7 +66,7 @@ class CarlaokDataset(Dataset):
         self.use_all_lidar = self.cfg.all_lidar
         self.use_cam = self.cfg.use_cam
         if self.use_cam: self.cam_channel = self.cfg.cam_channel
-        self.device = cfg.device if device is None else device        
+        self.device = cfg.device if device is None else device 
     
         
     def __getitem__(self, idx) -> torch.Tensor:
@@ -123,22 +134,18 @@ class CarlaokDataset(Dataset):
     def get_lidar_world(self, pointsensor_token: str) -> LidarPointCloud:
         return map_pc_to_image(CarlaokDataset.lyft_data, pointsensor_token, get_world=True)
         
-        
+    
     @classmethod
     def get_dataset_len(cls):
         """ Return the length of the dataset """
         return len(cls.lyft_data.sample)
-    
+        
     
 if __name__ == '__main__':
     import os, time
     os.environ["CUDA_VISIBLE_DEVICES"]=cfg.CUDA_VISIBLE_DEVICES
 
-    fullset = CarlaokDataset()
-    dataset_length = CarlaokDataset.get_dataset_len()
-    split_length = [int(dataset_length*ratio) for ratio in cfg.data.split_ratio]
-    split_length[-1] += dataset_length - sum(split_length)
-    train_set, valid_set, test_set = random_split(fullset, split_length)
+    train_set, valid_set, test_set = get_datasets()
     
     # print("dataset length is: ", )
 
