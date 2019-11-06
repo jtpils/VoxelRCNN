@@ -9,8 +9,6 @@
 The dataset is composed by several parts. original images/lidar in .jpeg and .bin files. e.g.:
 `train_images/host-a004_cam0_1232815252251064006.jpeg`, `train_lidar/host-a004_lidar1_1232815252301696606.bin`. These files are all cooresponding to the `sample_data.json` file.
 
-The connotations are in another folder what the fuck!!!!! plz dont lost connection plz.
-
 ### Json format
 
 1. sample_data
@@ -170,3 +168,33 @@ Point cloud => calibrated => global => global (cam) => calibrated => camera fram
 By camera frame => image plane, use the `camera_intrinsic` in camera calibrated sensor, by adopting the function: ![Intrinsics](./IntrinsicMat.png) in function `view_points(points: np.ndarray, view: np.ndarray, normalize: bool) -> np.ndarray` from `lyft_dataset_sdk.utils.geometry_utils`.
 
 average loading time: about 0.4s
+
+## Target
+
+Target is from the annotations, which are in the form of bounding boxes. The `data_classes` provide a class `Box` for the them. A box class can be generated from a sample_data token.
+
+### Class Box
+
+#### Attributes
+
+Reimplemented `__eq__`, `__repr__`.
+
+- center: np array (3,)
+- label: always nan
+- name: the label
+- orientation: a Quaternion
+- rotation_matrix: np array (3,3)
+- score: nan
+- token
+- velocity
+- wlh: size in width, length, height
+
+#### Methods
+
+1. `translate(x)`, x as np.float: 3, 1
+2. `rotate(quaternion: Quaternion)`
+3. `corners(wlh_factor: float)` which are bbox corners that the first four corners are the ones facing forward, and the last four are the ones facing backwards
+4. `bottom_corners()` four of them
+5. `render(axis)` as plt, and axis as plt.Axes
+6. `render_cv2(image)` as cv2
+7. `copy()`

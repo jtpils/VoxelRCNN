@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader
 
 from log import setup_logger, GlobalLogger
 from utils.dataloader import get_datasets
+from 
 
 
 device = cfg.device
@@ -33,7 +34,11 @@ def train():
                               shuffle=True,
                               num_workers=0,
                               collate_fn=collate_custom)
-    
+    train_loader = DataLoader(train_set,
+                              batch_size=cfg.model.batch_size,
+                              shuffle=True,
+                              num_workers=0,
+                              collate_fn=collate_custom)
     
 if __name__ == "__main__":
     pass
