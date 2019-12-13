@@ -19,9 +19,10 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 
 from log import setup_logger, GlobalLogger
-from utils.dataloader import get_datasets
-from 
+from data.dataloader import get_datasets
 
+# Enable anomaly detection
+torch.autograd.set_detect_anomaly(True)
 
 device = cfg.device
 
