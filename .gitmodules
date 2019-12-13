@@ -1,0 +1,3 @@
+[submodule "SECOND_plus"]
+	path = SECOND_plus
+	url = https://github.com/Eralien/SECOND_plus.git
