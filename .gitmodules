@@ -1,3 +1,6 @@
 [submodule "SECOND_plus"]
 	path = SECOND_plus
 	url = https://github.com/Eralien/SECOND_plus.git
+[submodule "mAP"]
+	path = mAP
+	url = https://github.com/Cartucho/mAP.git
