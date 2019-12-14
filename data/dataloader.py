@@ -24,7 +24,11 @@ from spconv.utils import VoxelGeneratorV2
 
 
 def get_datasets():
-    """ Wrapper to get train, valid, and test datasets """
+    """ Wrapper to get train, valid datasets.
+
+    Notice for test datasets, it is in a different path which hasn't been implemented
+    in this function yet.
+    """
     fullset = CarlaokDataset()
     dataset_length = CarlaokDataset.get_dataset_len()
     split_length = [int(dataset_length*ratio) for ratio in cfg.data.split_ratio]
@@ -35,35 +39,35 @@ def get_datasets():
 class CarlaokDataset(Dataset):
     """ Lyft Dataset
     Using lyft dataset sdk to generate the trainable data
-    
+
     Attributes:
         __init__: ...
         __getitem__: ...
-        
+
     """
     # The lyft data sdk
     lyft_data = LyftDataset(data_path=cfg.data.lyft,
                             json_path=cfg.data.train_path,
                             verbose=False)
-    
+
     # The voxel generator
-    voxel_generator = VoxelGeneratorV2(cfg.voxel.voxel_size, 
+    voxel_generator = VoxelGeneratorV2(cfg.voxel.voxel_size,
                                        cfg.voxel.range,
                                        cfg.voxel.max_num)
     grid_size = voxel_generator.grid_size
-    
+
     # Split the data into train, test and validation when initialized
     datacfg = cfg.data
     type_name = ["train", "valid", "test"]
-    
-    
+
+
     def __init__(self, device: str = None):
         """ Initalize the dataset list using lyft samples
-        
-        Args: 
+
+        Args:
             device: cpu or gpu
             validation: true if to validate or test
-        
+
         Returns:
             CarlaokDataset: torch Dataset instance
         """
@@ -73,15 +77,15 @@ class CarlaokDataset(Dataset):
         self.use_all_lidar = self.cfg.all_lidar
         self.use_cam = self.cfg.use_cam
         if self.use_cam: self.cam_channel = self.cfg.cam_channel
-        self.device = cfg.device if device is None else device 
-    
-        
+        self.device = cfg.device if device is None else device
+
+
     def __getitem__(self, idx) -> torch.Tensor:
         """ Return the selected data from the lyft dataset
 
         Args:
             bla
-        
+
         Returns:
             bla
 
@@ -90,11 +94,11 @@ class CarlaokDataset(Dataset):
         sensor_token = sample['data']
         dft_lidar_token = sensor_token[self.dft_lidar_channel]
         dft_pc = self.get_lidar_ego(dft_lidar_token)    # Calibrate the lidar
-        boxes = CarlaokDataset.lyft_data.get_boxes(dft_lidar_token) 
+        boxes = CarlaokDataset.lyft_data.get_boxes(dft_lidar_token)
         # print("raw pc: ", dft_pc.points.shape)
-        
+
         # Calibrate and append other lidars to the TOP lidar
-        if self.use_all_lidar: 
+        if self.use_all_lidar:
             aux_lidar_token = []
             for channel in self.aux_lidar_channel:
                 if sensor_token.get(channel) is not None:
@@ -105,7 +109,7 @@ class CarlaokDataset(Dataset):
                 dft_pc.points = np.hstack([dft_pc.points, aux_pc.points])
                 # print("aux pc: ", aux_pc.points.shape)
         assert dft_pc.points.shape[0] == 4
-                
+
         # Use camera information
         if self.use_cam:
             pc_rgb = np.array([]).reshape(7,-1)     # should be xyzirgb, 7 dims
@@ -116,45 +120,45 @@ class CarlaokDataset(Dataset):
                 # print("rgb: ", one_pc_rgb.shape)
             gt_pc = pc_rgb.T
             del pc_rgb
-        else: 
+        else:
             gt_pc = dft_pc.points.T
             del dft_pc
-        
+
         if cfg.multi_GPU is True:
             voxels = CarlaokDataset.voxel_generator.generate_multi_gpu(gt_pc)
         else:
             voxels = CarlaokDataset.voxel_generator.generate(gt_pc)
-        
-        # Make the np raw voxels to torch 
+
+        # Make the np raw voxels to torch
         voxels = self.voxel_process(voxels)
-        
+
         return voxels
 
-    
+
     def __len__(self):
         return len(CarlaokDataset.lyft_data.sample)
-        
-    
+
+
     def map_pc_to_image(self, pointsensor_token: str, cam_token: str) -> np.ndarray:
         return map_pc_to_image(CarlaokDataset.lyft_data, pointsensor_token, cam_token)
-    
-    
+
+
     def map_pc_to_default(self, lidar_token: str, default_lidar_data: str) -> LidarPointCloud:
         pc = self.get_lidar_world(lidar_token)
         poserecord = CarlaokDataset.lyft_data.get("ego_pose", default_lidar_data["ego_pose_token"])
         pc.translate(-np.array(poserecord["translation"]))
         pc.rotate(Quaternion(poserecord["rotation"]).rotation_matrix.T)
         return pc
-    
-    
+
+
     def get_lidar_ego(self, pointsensor_token: str) -> LidarPointCloud:
         return map_pc_to_image(CarlaokDataset.lyft_data, pointsensor_token, get_ego=True)
-    
-    
+
+
     def get_lidar_world(self, pointsensor_token: str) -> LidarPointCloud:
         return map_pc_to_image(CarlaokDataset.lyft_data, pointsensor_token, get_world=True)
-        
-    
+
+
     def voxel_process(self, voxels):
         """This function is to provide quick realization for our task.
         It corporates self.data_transform and self.voxel_convert_to_torch
@@ -177,18 +181,18 @@ class CarlaokDataset(Dataset):
                                                   dtype=torch.long,
                                                   device=self.device)
         return voxels
-    
-    
+
+
     @classmethod
     def get_dataset_len(cls):
         """ Return the length of the dataset """
         return len(cls.lyft_data.sample)
-        
+
 
 def collate_fn(items):
     pass
 
-    
+
 if __name__ == '__main__':
     import os, time
     os.environ["CUDA_VISIBLE_DEVICES"]=cfg.CUDA_VISIBLE_DEVICES
@@ -197,11 +201,10 @@ if __name__ == '__main__':
     train_set, valid_set, test_set = get_datasets()
     print(getsizeof(train_set), getsizeof(valid_set), getsizeof(test_set))
     del valid_set, test_set
-    
+
     for i in range(len(train_set)):
         start = time.time()
         sample = train_set[i]
         print("time: ", time.time() - start)
         print("sample size: ", getsizeof(sample))
     pass
-    

@@ -14,7 +14,7 @@ from lyft_dataset_sdk.utils.geometry_utils import view_points  # NOQA
 
 
 def map_pc_to_image(lyft_data,
-                    pointsensor_token: str, 
+                    pointsensor_token: str,
                     camera_token: str = None,
                     get_ego=False,
                     get_world=False) -> LidarPointCloud:
@@ -28,9 +28,9 @@ def map_pc_to_image(lyft_data,
     Returns: tuple of
         pointcloud <np.float: 2, n)>
         coloring <np.float: n>, image <Image>
-        
+
     """
-    
+
     pointsensor = lyft_data.get("sample_data", pointsensor_token)
     pcl_path = lyft_data.data_path / pointsensor["filename"]
     if pointsensor["sensor_modality"] == "lidar":
@@ -56,7 +56,7 @@ def map_pc_to_image(lyft_data,
     assert camera_token is not None, "Must specify a camera token"
     cam = lyft_data.get("sample_data", camera_token)
     im = Image.open(str(lyft_data.data_path / cam["filename"]))
-    
+
     # Third step: transform into the ego vehicle frame for the timestamp of the image.
     poserecord = lyft_data.get("ego_pose", cam["ego_pose_token"])
     pc.translate(-np.array(poserecord["translation"]))
@@ -82,7 +82,7 @@ def map_pc_to_image(lyft_data,
     mask = np.logical_and(mask, points[1, :] > 1)
     mask = np.logical_and(mask, points[1, :] < im.size[1] - 1)
     points = points[:, mask]
-   
+
     # Map the image points to the lidar points.
     idx = points.round().astype(np.int)
     col_idx = idx[0,:]

@@ -23,10 +23,10 @@ class SimpleVoxel(nn.Module):
     """SimpleVoxel
 
     SimpleVoxel is one of the realizations of VFE
-    
+
     It only returns the mean of the points"""
-    
-    
+
+
     def __init__(self,
                  num_input_features=4,
                  name='VoxelFeatureExtractor'):
@@ -40,7 +40,7 @@ class SimpleVoxel(nn.Module):
         The proposed features:
             features: [concated_num_points, num_voxel_size, 3(4)]
             num_voxels: [concated_num_points]
-            
+
         Check README.md for further information
         """
         with torch.no_grad():
@@ -48,19 +48,19 @@ class SimpleVoxel(nn.Module):
             dim=1, keepdim=False) / num_voxels.type_as(features).view(-1, 1)
         return points_mean.contiguous()
         # Using torch.view requires method Tensor.contiguous afterwards
-        # 
+        #
 
 
 def target_gen():
     return Target(name=cfg.model.vfe_name)
 
-   
+
 class Target(nn.Module):
     def __init__(self,
                  name='Target'):
         super(Target, self).__init__()
         self.name = name
-    
+
     def forward(self, features):
         """
         Generates the sparse target
