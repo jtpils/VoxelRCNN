@@ -10,7 +10,6 @@ import os, glob
 from easydict import EasyDict as edict
 import numpy as np
 from datetime import datetime
-import torch
 
 __C = edict()
 cfg = __C
@@ -18,12 +17,25 @@ cfg = __C
 
 # ------------------------------------ GPU ----------------------------------- #
 
+__C.CUDA_VISIBLE_DEVICES = "1" # Type your available GPUs!!
+os.environ["CUDA_VISIBLE_DEVICES"]=__C.CUDA_VISIBLE_DEVICES
+
+import torch
 __C.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-__C.CUDA_VISIBLE_DEVICES = "0"                   # Type your available GPUs!!
 __C.multi_GPU = False if len(__C.CUDA_VISIBLE_DEVICES) == 1 else True
 
 
 # ---------------------------------- Dataset --------------------------------- #
+
+def gen_spatial_shape(voxel_size, voxel_range):
+    """ Generate Spatial Shape of the voxel space
+
+    The spatial shape is [D, H, W] ([Z, X, Y]) type
+    """
+    spatial_shape = list(((np.array(voxel_range[3:]) -
+                           np.array(voxel_range[:3])) /
+                           np.array(voxel_size)).astype(np.int))
+    return spatial_shape[-1:] + spatial_shape[:-1]
 
 __C.data = edict()
 __C.data.base = os.path.join(".", "data")
@@ -66,9 +78,21 @@ __C.voxel.range: list = [0, -32, -1, 64, 32, 3]  # format: xyzxyz, minmax
 __C.voxel.max_num = 15          # Max number of points contained in a voxel
 __C.voxel.render_plot = False
 __C.voxel.render_gt = False     # May be very slow if True
+__C.voxel.spatial_shape = gen_spatial_shape(__C.voxel.voxel_size, __C.voxel.range)
 
 
 # ----------------------------------- Model ---------------------------------- #
 
 __C.model = edict()
-__C.model.batch_size = 1
+__C.model.batch_size = 2
+__C.model.num_epoches = 200
+__C.model.SGD_lr = 0.001
+__C.model.SGD_lr_decay = 0.001
+__C.model.SGD_momentum = 0.1
+
+# BBox
+__C.anchor_list = torch.tensor([[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [2, 3], [3, 2], [3, 5], [5, 3]])
+
+
+# if __name__ == "__main__":
+#     pass

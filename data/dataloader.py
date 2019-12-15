@@ -2,28 +2,26 @@ __author__ = 'Eralien'
 # Copyright 2019 Siyuan Feng
 # Date: Oct 19
 
-# TODO: adapt for eval-enabled dataloader
+# TODO: the eval-enabled dataloader
 
-import os, math
-import shutil
+from config import cfg
 import numpy as np
 import torch
 from torch import nn, optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, random_split
-import pickle
-from config import cfg
+import pickle, spconv
 from lyft_dataset_sdk.lyftdataset import LyftDataset
 from lyft_dataset_sdk.utils.data_classes import LidarPointCloud
 from data.data_process import map_pc_to_image
 from pyquaternion import Quaternion
 from spconv.utils import VoxelGeneratorV2
 
-# from utils.voxel_gen import pointcloud_gen, voxel_gen
-# from utils.sp2d import sparse2dense
+from utils import timeit
 
 
-def get_datasets():
+@timeit
+def get_datasets(**kwargs):
     """ Wrapper to get train, valid datasets.
 
     Notice for test datasets, it is in a different path which hasn't been implemented
@@ -50,6 +48,10 @@ class CarlaokDataset(Dataset):
                             json_path=cfg.data.train_path,
                             verbose=False)
 
+    classes = {}
+    for i, one_class in enumerate(lyft_data.category, 1):
+        classes[one_class['name']] = i
+
     # The voxel generator
     voxel_generator = VoxelGeneratorV2(cfg.voxel.voxel_size,
                                        cfg.voxel.range,
@@ -71,12 +73,12 @@ class CarlaokDataset(Dataset):
         Returns:
             CarlaokDataset: torch Dataset instance
         """
-        self.cfg = CarlaokDataset.datacfg
-        self.dft_lidar_channel = self.cfg.default_lidar_channel
-        self.aux_lidar_channel = self.cfg.auxiliary_lidar_channel
-        self.use_all_lidar = self.cfg.all_lidar
-        self.use_cam = self.cfg.use_cam
-        if self.use_cam: self.cam_channel = self.cfg.cam_channel
+        datacfg_ = CarlaokDataset.datacfg
+        self.dft_lidar_channel = datacfg_.default_lidar_channel
+        self.aux_lidar_channel = datacfg_.auxiliary_lidar_channel
+        self.use_all_lidar = datacfg_.all_lidar
+        self.use_cam = datacfg_.use_cam
+        if self.use_cam: self.cam_channel = datacfg_.cam_channel
         self.device = cfg.device if device is None else device
 
 
@@ -94,8 +96,8 @@ class CarlaokDataset(Dataset):
         sensor_token = sample['data']
         dft_lidar_token = sensor_token[self.dft_lidar_channel]
         dft_pc = self.get_lidar_ego(dft_lidar_token)    # Calibrate the lidar
-        boxes = CarlaokDataset.lyft_data.get_boxes(dft_lidar_token)
-        # print("raw pc: ", dft_pc.points.shape)
+        bboxes = CarlaokDataset.lyft_data.get_sample_data(dft_lidar_token, flat_vehicle_coordinates=True)[1]
+
 
         # Calibrate and append other lidars to the TOP lidar
         if self.use_all_lidar:
@@ -108,7 +110,7 @@ class CarlaokDataset(Dataset):
                 aux_pc = self.map_pc_to_default(token, dft_lidar_data)
                 dft_pc.points = np.hstack([dft_pc.points, aux_pc.points])
                 # print("aux pc: ", aux_pc.points.shape)
-        assert dft_pc.points.shape[0] == 4
+        assert dft_pc.points.shape[0] == 4, "The raw lidar data has 4 channels"
 
         # Use camera information
         if self.use_cam:
@@ -131,7 +133,8 @@ class CarlaokDataset(Dataset):
 
         # Make the np raw voxels to torch
         voxels = self.voxel_process(voxels)
-
+        voxels = self.builtin_simplevoxel(voxels)
+        voxels["bboxes"] = self.bboxes_generator(bboxes)
         return voxels
 
 
@@ -140,6 +143,15 @@ class CarlaokDataset(Dataset):
 
 
     def map_pc_to_image(self, pointsensor_token: str, cam_token: str) -> np.ndarray:
+        """Map point cloud to the camera coorditions.
+
+        The lidar token and cam token all refer to the sensor coordination.
+        Lidar pose -> Ego pose (at the lidar moment) -> World pose ->
+        Ego pose (at the camera moment) -> Camera pose
+
+        Return:
+            np.ndarray (N, 3) of the information of cam placed as
+        """
         return map_pc_to_image(CarlaokDataset.lyft_data, pointsensor_token, cam_token)
 
 
@@ -160,12 +172,20 @@ class CarlaokDataset(Dataset):
 
 
     def voxel_process(self, voxels):
-        """This function is to provide quick realization for our task.
+        """This function is to provide a quick realization for our task.
+
         It corporates self.data_transform and self.voxel_convert_to_torch
         (deprecated)
 
-        Input: data -> dict. see the "Survey"
-        Output: voxels in torch tensor
+        Arg:
+            voxels -> dict. see the "Survey"
+
+        Return:
+            voxels: dict
+            voxels['voxels']: torch.FloatTensor (N, 15, 7) or (N, 15, 4) if cam not used
+            voxels['num_points']: scalar
+            voxels['coordinates']: torch.LongTensor (N, 3)
+            voxels['voxel_point_mask']: torch.LongTensor (N, 15, 1)
         """
         voxels['voxels'] = torch.tensor(voxels["voxels"],
                                         dtype=torch.float32,
@@ -183,6 +203,51 @@ class CarlaokDataset(Dataset):
         return voxels
 
 
+    def builtin_simplevoxel(self, voxels):
+        """ This function realize the simple voxel in VFE
+
+        This funtion avoids burden on computation graph and complexity.
+        It get the mean value for each voxel among all the points in it.
+
+        Args:
+            voxels: dict
+            voxels['voxels']: torch.FloatTensor (N, 15, 7) or (N, 15, 4) if cam not used
+            voxels['num_points']: scalar
+            voxels['coordinates']: torch.LongTensor (N, 3)
+            voxels['voxel_point_mask']: torch.LongTensor (N, 15, 1)
+
+        Return:
+            voxels: dict
+            voxels['voxels']: torch.FloatTensor (N, 7) or (N, 4) if cam not used
+        """
+        raw_voxels = voxels['voxels']
+        mask = voxels['voxel_point_mask']
+        pt_per_voxel = mask.sum(dim=1) # (N,)
+        raw_voxels = raw_voxels.masked_fill(mask.bool().logical_not(), 0.).sum(1) / pt_per_voxel
+        voxels['voxels'] = raw_voxels
+        return voxels
+
+
+    def bboxes_generator(self, bboxes):
+        """ From original lyft-dev-kit Box class to torch.Tensor
+
+        Arg:
+            bboxes: Box
+
+        Return:
+            torch.FloatTensor (N, 8), N is the number of instances in current scene
+            where 8 stands for class, center_xyz, wlh, and angle (yaw, based on flat ground calibrated)
+        """
+        output = torch.FloatTensor(len(bboxes), 8)
+        for i, bbox in enumerate(bboxes):
+            class_num = CarlaokDataset.classes[bbox.name]
+            output[i, 0] = class_num
+            output[i, 1:4] = torch.from_numpy(bbox.center)
+            output[i, 4:7] = torch.from_numpy(bbox.wlh)
+            output[i, -1] = bbox.orientation.radians
+        return output.to(self.device)
+
+
     @classmethod
     def get_dataset_len(cls):
         """ Return the length of the dataset """
@@ -190,21 +255,50 @@ class CarlaokDataset(Dataset):
 
 
 def collate_fn(items):
-    pass
+    """ Make batch tensor for sparse voxel tensor and bbox
+
+    Args:
+        items: list[dict]
+
+    Returns:
+        spTensor: spconv.SparseConvTensor shaped (B, C, D, H, W)
+        bboxes: torch.FloatTensor shaped (B, N, 8), where N is the max number of instances
+        in each batch member
+    """
+    voxels_num = np.array([i['voxel_num'] for i in items])
+    voxels_num_sum = voxels_num.sum()
+    batch_size = len(items)
+    features_raw = [i['voxels'][:,-3:] for i in items]
+    features = torch.cat(features_raw)
+    assert features.shape[0] == voxels_num_sum, "Concatenation error occurs"
+    batch_idx = torch.cat([torch.LongTensor([i]).repeat(k) \
+        for i, k in zip(range(batch_size), voxels_num)]).to(features.device)
+    idx_raw = torch.cat([i['coordinates'] for i in items])
+    indices = torch.cat((batch_idx.view(-1,1), idx_raw), dim=1)
+    spatial_shape = cfg.voxel.spatial_shape
+    spTensor = spconv.SparseConvTensor(features, indices, spatial_shape, batch_size)
+
+    instance_list = [i['bboxes'] for i in items]
+    max_instance = max([inst.shape[0] for inst in instance_list])
+    bboxes_list = []
+    for b in instance_list:
+        bboxes_list.append(F.pad(b.view(1,1,*list(b.shape)),
+                                 (0,0,0,max_instance-b.shape[0]),
+                                 "constant", -1.).squeeze(0))
+    bboxes = torch.cat(bboxes_list, dim=0)
+    return (spTensor, bboxes)
 
 
 if __name__ == '__main__':
-    import os, time
-    os.environ["CUDA_VISIBLE_DEVICES"]=cfg.CUDA_VISIBLE_DEVICES
+    import time
     from sys import getsizeof
-
-    train_set, valid_set, test_set = get_datasets()
-    print(getsizeof(train_set), getsizeof(valid_set), getsizeof(test_set))
-    del valid_set, test_set
+    train_set, valid_set = get_datasets()
+    print(getsizeof(train_set), getsizeof(valid_set))
+    del valid_set
 
     for i in range(len(train_set)):
         start = time.time()
         sample = train_set[i]
-        print("time: ", time.time() - start)
+        print("time: {:3.2f}".format(time.time() - start))
         print("sample size: ", getsizeof(sample))
     pass
