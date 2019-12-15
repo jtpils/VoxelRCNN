@@ -84,7 +84,7 @@ __C.voxel.spatial_shape = gen_spatial_shape(__C.voxel.voxel_size, __C.voxel.rang
 # ----------------------------------- Model ---------------------------------- #
 
 __C.model = edict()
-__C.model.batch_size = 2
+__C.model.batch_size = 32
 __C.model.num_epoches = 200
 __C.model.SGD_lr = 0.001
 __C.model.SGD_lr_decay = 0.001

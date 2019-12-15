@@ -26,7 +26,7 @@ torch.autograd.set_detect_anomaly(True)
 device = cfg.device
 
 
-def train():
+def main():
     # load data as train_set and validation set
     train_set, _, = get_datasets()
     train_loader = DataLoader(train_set,
@@ -37,9 +37,9 @@ def train():
 
     # Prepare the net
     net = get_VoxelMaskRCNN()
-    # net_cuda = net.to(device)
+    net_cuda = net.to(device)
 
-    optimizer = optim.SGD(net.parameters(),
+    optimizer = optim.SGD(net_cuda.parameters(),
                           lr=cfg.model.SGD_lr,
                           momentum=cfg.model.SGD_momentum)
 
@@ -48,13 +48,22 @@ def train():
 
     starting_epoch = 0
     for epoch in range(starting_epoch, cfg.model.num_epoches):
-        pbar = tqdm(enumerate(train_loader, 1),
-                    ascii=True,
-                    total=math.ceil(len(train_loader.dataset)/train_loader.batch_size))
-        for i, data in pbar:
-            spTensor, bboxes = data
-            pass
+        train(epoch, train_loader, net_cuda)
+
+
+def train(epoch, train_loader, model):
+    pbar = tqdm(enumerate(train_loader, 1),
+                ascii=True,
+                total=math.ceil(len(train_loader.dataset)/train_loader.batch_size))
+    for i, data in pbar:
+        pbar.set_description("Epoch {}".format(epoch + 1))
+        spTensor, bboxes = data
+        output = model(spTensor)
+        pass
+
+    # Cleanup tqdm
+    pbar.close()
 
 
 if __name__ == "__main__":
-    train()
+    main()

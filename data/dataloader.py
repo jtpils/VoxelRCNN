@@ -10,7 +10,7 @@ import torch
 from torch import nn, optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, random_split
-import pickle, spconv
+import spconv
 from lyft_dataset_sdk.lyftdataset import LyftDataset
 from lyft_dataset_sdk.utils.data_classes import LidarPointCloud
 from data.data_process import map_pc_to_image
@@ -184,8 +184,8 @@ class CarlaokDataset(Dataset):
             voxels: dict
             voxels['voxels']: torch.FloatTensor (N, 15, 7) or (N, 15, 4) if cam not used
             voxels['num_points']: scalar
-            voxels['coordinates']: torch.LongTensor (N, 3)
-            voxels['voxel_point_mask']: torch.LongTensor (N, 15, 1)
+            voxels['coordinates']: torch.IntTensor (N, 3)
+            voxels['voxel_point_mask']: torch.BoolTensor (N, 15, 1)
         """
         voxels['voxels'] = torch.tensor(voxels["voxels"],
                                         dtype=torch.float32,
@@ -195,10 +195,10 @@ class CarlaokDataset(Dataset):
                                             dtype=torch.int32,
                                             device=self.device)
         voxels['coordinates'] = torch.tensor(voxels["coordinates"],
-                                             dtype=torch.int64,
+                                             dtype=torch.int32,
                                              device=self.device)
         voxels['voxel_point_mask'] = torch.tensor(voxels["voxel_point_mask"],
-                                                  dtype=torch.long,
+                                                  dtype=torch.bool,
                                                   device=self.device)
         return voxels
 
@@ -213,7 +213,7 @@ class CarlaokDataset(Dataset):
             voxels: dict
             voxels['voxels']: torch.FloatTensor (N, 15, 7) or (N, 15, 4) if cam not used
             voxels['num_points']: scalar
-            voxels['coordinates']: torch.LongTensor (N, 3)
+            voxels['coordinates']: torch.IntTensor (N, 3)
             voxels['voxel_point_mask']: torch.LongTensor (N, 15, 1)
 
         Return:
@@ -223,7 +223,7 @@ class CarlaokDataset(Dataset):
         raw_voxels = voxels['voxels']
         mask = voxels['voxel_point_mask']
         pt_per_voxel = mask.sum(dim=1) # (N,)
-        raw_voxels = raw_voxels.masked_fill(mask.bool().logical_not(), 0.).sum(1) / pt_per_voxel
+        raw_voxels = raw_voxels.masked_fill(mask.logical_not(), 0.).sum(1) / pt_per_voxel
         voxels['voxels'] = raw_voxels
         return voxels
 
@@ -271,7 +271,7 @@ def collate_fn(items):
     features_raw = [i['voxels'][:,-3:] for i in items]
     features = torch.cat(features_raw)
     assert features.shape[0] == voxels_num_sum, "Concatenation error occurs"
-    batch_idx = torch.cat([torch.LongTensor([i]).repeat(k) \
+    batch_idx = torch.cat([torch.IntTensor([i]).repeat(k) \
         for i, k in zip(range(batch_size), voxels_num)]).to(features.device)
     idx_raw = torch.cat([i['coordinates'] for i in items])
     indices = torch.cat((batch_idx.view(-1,1), idx_raw), dim=1)
