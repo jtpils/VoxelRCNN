@@ -198,3 +198,22 @@ Reimplemented `__eq__`, `__repr__`.
 5. `render(axis)` as plt, and axis as plt.Axes
 6. `render_cv2(image)` as cv2
 7. `copy()`
+
+## Function build
+
+### IOU 3d from PointRCNN
+
+By using CUDA and PYBIND from c++ to python, build the iou3d_cuda package which calculated the 3d ROI.
+
+```bash
+python setup.py install
+```
+
+Notice it required a corrected CUDA_HOME path in bashrc: `/usr/local/cuda/`. And the nvcc will correctly find include path with `<cuda.h>` and `<cuda_runtime.h>`
+
+Methods in package 3droi_cuda:
+
+1. boxes_iou_bev_gpu
+2. boxes_overlap_bev_gpu
+3. nms_gpu
+4. nms_normal_gpu

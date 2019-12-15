@@ -141,6 +141,7 @@ dmypy.json
 # Personal Features
 # scripts/
 tmp/
-data/
+data/lyft
+data/image
 log/*.log
 log/*/
