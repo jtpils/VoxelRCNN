@@ -89,10 +89,7 @@ __C.model.num_epoches = 200
 __C.model.SGD_lr = 0.001
 __C.model.SGD_lr_decay = 0.001
 __C.model.SGD_momentum = 0.1
+__C.model.middle_name = "SparseSECOND"
 
 # BBox
 __C.anchor_list = torch.tensor([[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [2, 3], [3, 2], [3, 5], [5, 3]])
-
-
-# if __name__ == "__main__":
-#     pass

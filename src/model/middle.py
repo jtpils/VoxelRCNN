@@ -9,18 +9,16 @@ __author__ = 'Siyuan Feng'
 # os.environ["CUDA_VISIBLE_DEVICES"]='1'
 
 import numpy as np
-import torch
+import torch, spconv
 from torch import nn
 import torch.nn.functional as F
 from config import cfg
 from easydict import EasyDict as edict
-from models.convmod import Conv3dMod, Conv3dMod_GCN, Interpolate
+from src.model.convmod import Conv3dMod, Conv3dMod_GCN, Interpolate
+from src.model.convmod import SparseConv3dMod as spConvMod
 
 
-bncfg = cfg.model.bn
-
-
-def middle_module_gen(name="v0", criterion=None):
+def middle_module_gen(name="sparse", criterion=None):
     if name == "v0":
         return MiddleSiyuan(
             num_input_features=cfg.model.num_input_features,
@@ -49,6 +47,20 @@ def middle_module_gen(name="v0", criterion=None):
 
 
 class Loss(nn.Module):
+    def __init__(self, criterion):
+        super().__init__()
+        self.criterion = criterion
+
+    def forward(self, x, target):
+        # Compute the loss; Hardcode the permute axis sequence
+        loss_output = x.permute(0, 2, 3, 4, 1).contiguous().view(-1,cfg.demo_dataset.class_num)
+        loss_target = target.view(-1)
+
+        # loss
+        return self.criterion(loss_output, loss_target)
+
+
+class SparseLoss(nn.Module):
     def __init__(self, criterion):
         super().__init__()
         self.criterion = criterion
@@ -210,6 +222,43 @@ class MiddleV3(nn.Module):
 
 
 class MiddleSparse(nn.Module):
+    def __init__(self,
+        num_input_features=4,
+        name='SparseMiddle',
+        criterion=None):
+        super().__init__()
+
+        self._name = name
+        self.num_input_features = num_input_features
+
+        if self.training:
+            self.loss = SparseLoss(criterion)
+
+        self.middle_backbone = spconv.SparseSequential(
+            spConvMod(16, 32, hidden_layer=2,
+                      num_input_features=self.num_input_features),              # conv_mod:0
+            spConvMod(32, 64, hidden_layer=2),                                  # conv_mod:1
+            spConvMod(64, 128, hidden_layer=2, stride=(2,2,1)),                 # conv_mod:2
+            spConvMod(128, 128))                                                # conv_mod:3
+
+        self.middle_branch = spconv.SparseSequential(
+            spConvMod(128, 256, stride=(2,2,1)),                                # conv_mod:4
+            spConvMod(256, 256, stride=1),                                      # conv_mod:5
+            Interpolate(size=(16,16,5), mode='trilinear'),                      # interp:x
+            # Notice that when kernel size is 1, padding should be 0
+            spConvMod(256, 128, kernel=1, stride=1, padding=0, hidden_layer=1)) # conv_mod:6            # conv_mod:10
+
+    def forward(self, x, target):
+        x_backbone = self.middle_backbone(x)
+        x_branch = self.middle_branch(x_backbone)
+        x = x_backbone + x_branch
+
+        if self.training:
+            loss = self.loss(x, target)
+            return x, loss
+        else: return x
+
+
 
 # if __name__ == "__main__":
 #     a = torch.randint(0, 5, (1,3,32,32,20)).cuda().float()

@@ -6,7 +6,8 @@ from config import cfg
 from easydict import EasyDict as edict
 import spconv
 
-bncfg = cfg.model.bn
+
+# -------------------------------- GLOBAL CONV ------------------------------- #
 
 class Conv3dGCN(nn.Module):
     """ Implement Global Convolution Network (GCN) in the Conv3d
@@ -145,6 +146,8 @@ class Conv3dGCN(nn.Module):
         return output
 
 
+# -------------------------------- REGULAR MOD ------------------------------- #
+
 class Conv3dMod(nn.Module):
     """Conv3dModule
 
@@ -186,9 +189,7 @@ class Conv3dMod(nn.Module):
                     padding=1) # To keep the dim not shrinking
             self.conv3d_module.append(conv3d_layer)
             # Batch Normalization
-            bn_layer = nn.BatchNorm3d(
-                self._in_channels,
-                track_running_stats=bncfg.track_running_stats)
+            bn_layer = nn.batchnorm1d(self._in_channels)
             self.conv3d_module.append(bn_layer)
             # ReLU
             relu_layer = nn.ReLU(True)
@@ -203,9 +204,7 @@ class Conv3dMod(nn.Module):
             padding=self._padding)
         self.conv3d_module.append(conv3d_layer_down)
         # Batch Normalization
-        bn_layer = nn.BatchNorm3d(
-            self._out_channels,
-            track_running_stats=bncfg.track_running_stats)
+        bn_layer = nn.BatchNorm1d(self._out_channels)
         self.conv3d_module.append(bn_layer)
         # ReLU
         relu_layer = nn.ReLU(True)
@@ -257,9 +256,7 @@ class Conv3dMod_GCN(nn.Module):
                     padding=1) # To keep the dim not shrinking
             self.conv3d_module.append(conv3d_layer)
             # Batch Normalization
-            bn_layer = nn.BatchNorm3d(
-                self._in_channels,
-                track_running_stats=bncfg.track_running_stats)
+            bn_layer = nn.batchnorm1d(self._in_channels)
             self.conv3d_module.append(bn_layer)
             # ReLU
             relu_layer = nn.ReLU(True)
@@ -274,9 +271,7 @@ class Conv3dMod_GCN(nn.Module):
             padding=self._padding)
         self.conv3d_module.append(conv3d_layer_down)
         # Batch Normalization
-        bn_layer = nn.BatchNorm3d(
-            self._out_channels,
-            track_running_stats=bncfg.track_running_stats)
+        bn_layer = nn.batchnorm1d(self._out_channels)
         self.conv3d_module.append(bn_layer)
         # ReLU
         relu_layer = nn.ReLU(True)
@@ -289,6 +284,8 @@ class Conv3dMod_GCN(nn.Module):
             x = layer(x)
         return x
 
+
+# -------------------------------- INTERPOLATE ------------------------------- #
 
 class Interpolate(nn.Module):
     """A workaround for using F.interpolate as an nn Module
@@ -312,10 +309,15 @@ class Interpolate(nn.Module):
             align_corners=False)
 
 
+# ---------------------------------- SPARSE ---------------------------------- #
+
 class SparseConv3dMod(nn.Module):
-    """Conv3dModule
-    Sparse Conv3d Module follow the basic structure of SECOND.
-    for detailed structure."""
+    """ SparseConv3dMod
+
+    Sparse Conv3d Module follow the basic structure of SECOND Middle.
+    The detailed structure is:
+
+    """
     def __init__(self,
                  in_channels,
                  out_channels,
@@ -324,7 +326,8 @@ class SparseConv3dMod(nn.Module):
                  padding=1,
                  hidden_layer=3,
                  num_input_features=None,
-                 name='Conv3d'):
+                 name='Conv3d',
+                 ReLU_name="ReLU"):
         super(Conv3dMod, self).__init__()
         self._name = name
         self._hidden = hidden_layer
@@ -334,34 +337,34 @@ class SparseConv3dMod(nn.Module):
         self._stride = stride
         self._padding = padding
         self._num_input_features = num_input_features
-        self.conv3d_module = nn.ModuleList([])
+        self.conv3d_module = spconv.SparseModule([])
+        assert ReLU_name in ["ReLU", "Leaky"], "Not Implemented"
+        ReLU = nn.ReLU if ReLU_name == "ReLU" else nn.LeakyReLU
 
         for i in range(self._hidden-1):
             # Convolution
             if i == 0 and self._num_input_features is not None:
-                conv3d_layer = nn.Conv3d(
+                conv3d_layer = spconv.SubMConv3d(
                     self._num_input_features,
                     self._in_channels,
                     self._kernel,
                     padding=1) # To keep the dim not shrinking
             else:
-                conv3d_layer = nn.Conv3d(
+                conv3d_layer = spconv.SubMConv3d(
                     self._in_channels,
                     self._in_channels,
                     self._kernel,
                     padding=1) # To keep the dim not shrinking
             self.conv3d_module.append(conv3d_layer)
             # Batch Normalization
-            bn_layer = nn.BatchNorm3d(
-                self._in_channels,
-                track_running_stats=bncfg.track_running_stats)
+            bn_layer = nn.BatchNorm1d(self._in_channels)
             self.conv3d_module.append(bn_layer)
             # ReLU
-            relu_layer = nn.ReLU(True)
+            relu_layer = ReLU()
             self.conv3d_module.append(relu_layer)
 
         # Convlution downsampling
-        conv3d_layer_down = nn.Conv3d(
+        conv3d_layer_down = spconv.SparseConv3d(
             self._in_channels,
             self._out_channels,
             self._kernel,
@@ -369,17 +372,16 @@ class SparseConv3dMod(nn.Module):
             padding=self._padding)
         self.conv3d_module.append(conv3d_layer_down)
         # Batch Normalization
-        bn_layer = nn.BatchNorm3d(
-            self._out_channels,
-            track_running_stats=bncfg.track_running_stats)
+        bn_layer = nn.BatchNorm1d(self._out_channels)
         self.conv3d_module.append(bn_layer)
         # ReLU
-        relu_layer = nn.ReLU(True)
+        relu_layer = ReLU()
         self.conv3d_module.append(relu_layer)
+
+        # Make it a Sequential
+        self.conv3d_module = spconv.SparseSequential(*self.conv3d_module)
 
 
     def forward(self, x):
-        for layer in self.conv3d_module:
-            # i: index 0-n; l: the layer itself in the module list.
-            x = layer(x)
+        x = self.conv3d_module(x)
         return x

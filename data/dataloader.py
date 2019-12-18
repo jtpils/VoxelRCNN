@@ -292,9 +292,9 @@ def collate_fn(items):
 if __name__ == '__main__':
     import time
     from sys import getsizeof
-    train_set, valid_set = get_datasets()
-    print(getsizeof(train_set), getsizeof(valid_set))
-    del valid_set
+    train_set, _ = get_datasets()
+    # print(getsizeof(train_set), getsizeof(valid_set))
+    # del valid_set
 
     for i in range(len(train_set)):
         start = time.time()
